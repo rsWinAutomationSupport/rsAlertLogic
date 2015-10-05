@@ -50,11 +50,19 @@ Configuration RS_rsAlertLogicAgent
 
         SetScript = {
             $OutFile = $using:OutFile
-            Invoke-WebRequest -Uri $using:DownloadLink -OutFile $OutFile
+            if ($using:Ensure -eq "Present")
+            {
+                Invoke-WebRequest -Uri $using:DownloadLink -OutFile $OutFile
+            }
+            else
+            {
+                Remove-Item -Path $OutFile -Force -ErrorAction SilentlyContinue
+            }
         }
         TestScript = {
-            $OutFile = $using:OutFile #(Join-Path -Path $using:DownloadPath -ChildPath $using:FileName)
-            Test-Path -Path $OutFile -PathType Leaf
+            $OutFile = $using:OutFile
+            $Complying = ($using:Ensure -ne "Present") -xor (Test-Path -Path $OutFile -PathType Leaf)
+            $Complying
         }
         DependsOn = "[File]DownloadFolder"
     }
@@ -77,7 +85,7 @@ Configuration RS_rsAlertLogicAgent
     # Install the msi Package
     Package AlertLogicAgent
     {
-        Ensure = "Present"
+        Ensure = $Ensure
         Name = "AL Agent"
         Path = $OutFile
         Arguments = $Parameters
@@ -87,12 +95,14 @@ Configuration RS_rsAlertLogicAgent
 
 
     # Set the startupt type of the agent service to Automatic and Start the service
-    Service AlertLogicAgent
+    if ($Ensure -eq "Present")
     {
-        Name = "al_agent"
-        State = "Running"
-        StartupType = "Auomatic"
-        DependsOn = "[Package]AlertLogicAgent"
+        Service AlertLogicAgent
+        {
+            Name = "al_agent"
+            State = "Running"
+            StartupType = "Auomatic"
+            DependsOn = "[Package]AlertLogicAgent"
+        }
     }
-
 }
